@@ -8,18 +8,14 @@ using NUnit.Framework;
 
 namespace RadixBitSetTree
 {
+    using System.Diagnostics;
+
+    using RadixTreePerformance;
+
     [TestFixture]
     public class BitSetTree_Test
     {
         BitSetTree bst = new BitSetTree();
-
-        [Test]
-        public void Add_IntegrationTest()
-        {
-            bst.Add(50);
-
-            int stuff = 0;
-        }
 
         [Test]
         public void SingleValueWorks()
@@ -36,7 +32,7 @@ namespace RadixBitSetTree
         [Test]
         public void RangeOfValuesWork()
         {
-            int valuesRange = 100;
+            int valuesRange = 10000;
 
             for (int i = 0; i < valuesRange; i++)
             {
@@ -51,105 +47,320 @@ namespace RadixBitSetTree
         }
 
         [Test]
-        public void SerializeTree()
+        public void BitSetTree_ValuesNotInTree()
         {
-            int valuesRange = 100;
+            BitSetTree bst1 = new BitSetTree();
+            int ceiling = 100000;
+            bool output = true;
 
-            for (int i = 0; i < valuesRange; i++)
+            for (int i = 0; i < ceiling; i++)
             {
-                bst.Add(i);
+                if (i % 2 == 0)
+                    bst1.Add(i);
+
+                if (i % 2 == 1)
+                {
+                    if (!bst1.Contains(i))
+                    {
+                        output = false;
+                    }
+                }
             }
 
-            bst.Serialize(@"C:\Users\Brian\Dropbox\.5 - Inbox\TestTree.bin");
+            Assert.IsFalse(output);
         }
+
 
     }
 
     [TestFixture]
     public class BitSetNode_Test
     {
-        [Test]
-        public void getInteger()
+        
+        [TestCase(-72057594037927936, 8, 255)]
+        [TestCase(47850746040811520, 7, 170)]
+        public void getByte_ActuallyWorks(long input, int significantByte, long expectedOutput)
+        {
+            BitSetNode bsn = new BitSetNode();
+            
+            var convertedBooleans = bsn.getByte(input, significantByte);
+
+            Assert.AreEqual(convertedBooleans, expectedOutput);
+        }
+
+
+        [TestCase(5, 5, true)]
+        public void FinalBitCheck(int input, int leafValue, bool expectedOutput)
         {
             BitSetNode bsn = new BitSetNode();
 
-            bool[] zero = new bool[2]{false,false};
-            bool[] one = new bool[2] {false, true};
-            bool[] two = new bool[2] {true, false};
-            bool[] three = new bool[2] {true, true};
 
-            Assert.AreEqual(0, bsn.getInteger(zero));
-            Assert.AreEqual(1, bsn.getInteger(one));
-            Assert.AreEqual(2, bsn.getInteger(two));
-            Assert.AreEqual(3, bsn.getInteger(three));
-        }
-
-        [Test]
-        public void sanityCheck()
-        {
-            var fifty = 50;
-            Byte[] byteArray = BitConverter.GetBytes(fifty);
+            Byte[] byteArray = BitConverter.GetBytes(input);
             BitArray ba = new BitArray(byteArray);
 
-            bool[] fiftyArray = new bool[64];
-            ba.CopyTo(fiftyArray, 0);
+            bool[] bitArray = new bool[64];
+            ba.CopyTo(bitArray, 0);
 
+            var convertedBooleans = bsn.getByte(input, 1);
+            var outputOfCheck = leafValue & convertedBooleans;
 
-            var fourtyNine = 49;
-            Byte[] byteArray2 = BitConverter.GetBytes(fourtyNine);
-            BitArray ba2 = new BitArray(byteArray2);
+            bool output = outputOfCheck == convertedBooleans;
 
-            bool[] FourtyNineArray = new bool[64];
-            ba2.CopyTo(FourtyNineArray, 0);
-
-
-            var output = byteArray.SequenceEqual(byteArray2);
-
-            Assert.IsFalse(output);
+            Assert.AreEqual(expectedOutput, output);
         }
 
     }
 
 
+
+
     [TestFixture]
     public class PerformanceTests
     {
-        int _range = 100;
-        BitSetTree bst = new BitSetTree();
+        BitSetTree bst1 = new BitSetTree();
+        HashSet<long> hs = new HashSet<long>();
 
-        public long[] GetArrayOfLongs()
+        [TestCase(10000000)]
+        public void ByteTreeVsHashSet(int ceiling)
         {
-            List<long> list = new List<long>();
+            Stopwatch sw = new Stopwatch();
 
-            for (int i = 0; i < _range; i++)
+            sw.Start();
+            for (long i = 0; i < ceiling; i++)
+                bst1.Add(i);
+
+            for (long i = 0; i < ceiling; i++)
+                bst1.Contains(i);
+
+            sw.Stop();
+            var treeTime =  sw.ElapsedMilliseconds;
+
+            sw.Restart();
+
+            for (long i = 0; i < ceiling; i++)
+               hs.Add(i);
+
+            for (long i = 0; i < ceiling; i++)
+                hs.Contains(i);
+
+            sw.Stop();
+            var hashTime = sw.ElapsedMilliseconds;
+
+            Debug.WriteLine("Byte Tree: " + treeTime);
+            Debug.WriteLine("Hash Set: " + hashTime);
+
+            if (treeTime < hashTime)
+            {
+                Debug.WriteLine("Byte Tree is faster");
+            }
+            else
+            {
+                Debug.WriteLine("Hash Set is faster");
+            }
+        }
+
+        [TestCase(10000000)]
+        public void ByteTreeVs234Tree(int ceiling)
+        {
+            Stopwatch sw = new Stopwatch();
+            TwoThreeFourTree tree = new TwoThreeFourTree();
+
+            sw.Start();
+            for (int i = 0; i < ceiling; i++)
+                bst1.Add(i);
+
+            sw.Stop();
+            var ByteTreeTime = sw.ElapsedMilliseconds;
+
+            sw.Restart();
+
+            for (int i = 0; i < ceiling; i++)
+                tree.AddValue(i);
+
+            sw.Stop();
+            var TwoThreeFourTime = sw.ElapsedMilliseconds;
+
+            Debug.WriteLine("Byte Tree: " + ByteTreeTime);
+            Debug.WriteLine("234 Tree: " + TwoThreeFourTime);
+
+            if (ByteTreeTime < TwoThreeFourTime)
+            {
+                Debug.WriteLine("Byte Tree is faster");
+            }
+            else
+            {
+                Debug.WriteLine("234 Tree is faster");
+            }
+        }
+
+
+        [TestCase(10000000)]
+        public void ByteTreeVsList(int ceiling)
+        {
+            Stopwatch sw = new Stopwatch();
+            List<long> list = new List<long>();
+            BitSetTree byteTree = new BitSetTree();
+
+            sw.Start();
+            for (long i = 0; i < ceiling; i++)
+                byteTree.Add(i);
+
+            for (long i = 0; i < ceiling; i++)
+                byteTree.Contains(i);
+
+            sw.Stop();
+            var ByteTreeTime = sw.ElapsedMilliseconds;
+
+            sw.Restart();
+
+            for (long i = 0; i < ceiling; i++)
                 list.Add(i);
 
-            return list.ToArray();
+            for (long i = 0; i < ceiling; i++)
+                list.Contains(i);
+
+            sw.Stop();
+            var ListTime = sw.ElapsedMilliseconds;
+
+            Debug.WriteLine("Byte Tree: " + ByteTreeTime);
+            Debug.WriteLine("234 Tree: " + ListTime);
+
+            if (ByteTreeTime < ListTime)
+            {
+                Debug.WriteLine("Byte Tree is faster");
+            }
+            else
+            {
+                Debug.WriteLine("List is faster");
+            }
         }
 
 
-        [Test]
-        public void TreeIsSmallerOnDisk()
+
+
+    }
+
+    [TestFixture]
+    public class PerformanceGraph
+    {
+        private string _fileLocation = @"C:\Users\bwalsh\Dropbox\.5 - Inbox\PerfGraph\";
+
+        [TestCase(10000000, 1000000)]
+        public void ByteSetVsHashSet(long ceiling, long interval)
         {
-            for (int i = 0; i < _range; i++)
+            BitSetTree bst1 = new BitSetTree();
+            HashSet<long> hs = new HashSet<long>();
+
+            string absPath = _fileLocation + @"ByteSetVsHashSet.txt";
+
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(absPath))
             {
-                bst.Add(i);
+                
+                string treeAddTime = "";
+                string hashAddTime = "";
+
+                string treeContainsTime = "";
+                string hashContainsTime = "";
+
+                string line = "elements" + "\t" + "treeAddTime" + "\t" + "hashAddTime" + "\t" + "treeContainsTime" + "\t" + "hashContainsTime";
+
+                file.WriteLine(line);
+
+                for (long j = 0; j < ceiling; j = j + interval)
+                {
+                        
+                    Stopwatch sw = new Stopwatch();
+
+                    sw.Start();
+                    for (long i = 0; i < j; i++)
+                        bst1.Add(i);
+                        
+                    sw.Stop();
+                    treeAddTime = sw.ElapsedMilliseconds.ToString();
+
+                    sw.Restart();
+
+                    for (long i = 0; i < j; i++)
+                        bst1.Contains(i);
+
+                    treeContainsTime = sw.ElapsedMilliseconds.ToString();
+
+                    sw.Restart();
+
+                    for (long i = 0; i < j; i++)
+                        hs.Add(i);
+
+                    sw.Stop();
+                    hashAddTime = sw.ElapsedMilliseconds.ToString();
+
+                    sw.Restart();
+
+                    for (long i = 0; i < j; i++)
+                        hs.Contains(i);
+
+                    sw.Stop();
+                    hashContainsTime = sw.ElapsedMilliseconds.ToString();
+
+                    Console.WriteLine("Iteration Complete");
+
+                    line = j +"\t" + treeAddTime + "\t" + hashAddTime + "\t" + treeContainsTime + "\t" + hashContainsTime;
+
+                    file.WriteLine(line);
+                }
+                
+            }
+   
+        }
+
+        [TestCase(10000000, 1000000)]
+        public void ByteSetVs234Tree(long ceiling, long interval)
+        {
+            BitSetTree bst1 = new BitSetTree();
+            TwoThreeFourTree threeFourTree = new TwoThreeFourTree();
+
+            string absPath = _fileLocation + @"ByteSetVs234Tree.txt";
+
+            using (System.IO.StreamWriter file = new System.IO.StreamWriter(absPath))
+            {
+
+                string treeAddTime = "";
+                string twoThreeFourAddTime = "";
+
+                string line = "elements" + "\t" + "treeAddTime" + "\t" + "twoThreeFourAddTime";
+
+                file.WriteLine(line);
+
+                for (long j = 0; j < ceiling; j = j + interval)
+                {
+
+                    Stopwatch sw = new Stopwatch();
+
+                    sw.Start();
+                    for (long i = 0; i < j; i++)
+                        bst1.Add(i);
+
+                    sw.Stop();
+                    treeAddTime = sw.ElapsedMilliseconds.ToString();
+
+                    sw.Restart();
+
+                    for (int i = 0; i < j; i++)
+                        threeFourTree.AddValue(i);
+
+                    sw.Stop();
+                    twoThreeFourAddTime = sw.ElapsedMilliseconds.ToString();
+
+                    Console.WriteLine("Iteration Complete");
+
+                    line = j + "\t" + treeAddTime + "\t" + twoThreeFourAddTime;
+
+                    file.WriteLine(line);
+                }
+
             }
 
-            bst.Serialize(@"C:\Users\Brian\Dropbox\.5 - Inbox\TestTree.bin");
         }
-
-        [Test]
-        public void TreeIsSmallerInMemory()
-        {
-            for (int i = 0; i < _range; i++)
-                bst.Add(i);
-
-            var myList = this.GetArrayOfLongs();
-
-        }
-
-
+        
 
     }
 

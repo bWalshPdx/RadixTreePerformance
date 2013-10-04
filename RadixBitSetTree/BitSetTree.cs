@@ -33,24 +33,12 @@ namespace RadixBitSetTree
 
         public bool Contains(long value)
         {
-            Byte[] byteArray = BitConverter.GetBytes(value);
-            BitArray ba = new BitArray(byteArray);
-
-            bool[] bitArray = new bool[64];
-            ba.CopyTo(bitArray, 0);
-
-            return Root.Contains(bitArray);
+            return Root.Contains(value, 8);
         }
 
         public void Add(long value)
         {
-            Byte[] byteArray = BitConverter.GetBytes(value);
-            BitArray ba = new BitArray(byteArray);
-
-            bool[] bitArray = new bool[64];
-            ba.CopyTo(bitArray, 0);
-
-            Root.Add(bitArray);
+            Root.Add(value, 8);
         }
 
         public void Serialize(string fileLocation)
@@ -67,90 +55,77 @@ namespace RadixBitSetTree
     [Serializable]
     public class BitSetNode
     {
-        public Dictionary<int, BitSetNode> Values = new Dictionary<int, BitSetNode>();
-        
-        public BitSetNode()
+        //public Dictionary<int, BitSetNode> Values = new Dictionary<int, BitSetNode>();
+        private Byte _leafValue = 0;
+
+        private BitSetNode[] Values;
+
+        public void Add(long input, int chunksLeft)
         {
-            Values.Add(0, null);
-            Values.Add(1, null);
-            Values.Add(2, null);
-            Values.Add(3, null);
-        }
-
-        
-        public void Add(bool[] input)
-        {
-            if (input.Count() == 0)
-                return;
-
-            bool[] currentChunk = new bool[2];
-            bool[] nextChunk = new bool[input.Count() - 2];
-
-            for (int i = 0; i < (input.Count() - 1); i++)
+            if (chunksLeft == 1)
             {
-                if (i <= 1)
-                {
-                    currentChunk[i] = input[i];
-                }
-                else
-                {
-                    nextChunk[i - 2] = input[i];
-                }
+                _leafValue = (Byte)(_leafValue | getByte(input, chunksLeft));
             }
-
-            int ConvertedCurrentChunk = getInteger(currentChunk);
-
-            if (Values.ContainsKey(ConvertedCurrentChunk))
+            else
             {
+                if (Values == null)
+                    Values = new BitSetNode[256];
+
+                int ConvertedCurrentChunk = getByte(input, chunksLeft);
+
                 if (Values[ConvertedCurrentChunk] == null)
                     Values[ConvertedCurrentChunk] = new BitSetNode();
-                
-                //TODO: This should be a funciton of some sort since this is the only changed line:
-                Values[ConvertedCurrentChunk].Add(nextChunk);
+
+                Values[ConvertedCurrentChunk].Add(input, chunksLeft - 1);        
             }
+
         }
 
-        public bool Contains(bool[] input)
+
+        public bool Contains(long input, int chunksLeft)
         {
-            if (input.Count() == 0)
-                return true;
-
-            bool[] currentChunk = new bool[2];
-            bool[] nextChunk = new bool[input.Count() - 2];
-
-            for (int i = 0; i < (input.Count() - 1); i++)
+            if (chunksLeft == 1)
             {
-                if (i <= 1)
-                {
-                    currentChunk[i] = input[i];
-                }
-                else
-                {
-                    nextChunk[i - 2] = input[i];
-                }
+                var convertedBooleans = getByte(input, chunksLeft);
+                var outputOfCheck = _leafValue & convertedBooleans;
+
+                 if(outputOfCheck == convertedBooleans)
+                     return true;
             }
 
-            int ConvertedCurrentChunk = getInteger(currentChunk);
+            int ConvertedCurrentChunk = getByte(input, chunksLeft);
 
-            if (Values[ConvertedCurrentChunk] != null)
-                    return Values[ConvertedCurrentChunk].Contains(nextChunk);
+            if (chunksLeft != 1)
+            {
+                if (Values[ConvertedCurrentChunk] != null)
+                    return Values[ConvertedCurrentChunk].Contains(input, chunksLeft - 1);
+            }
+
             
+
             return false;
         }
 
-
-        public int getInteger(bool[] input)
+        public Byte getByte(long input, int ByteIndex)
         {
-            int ConvertedCurrentChunk = 0;
-            int value = 2;
+            //8 is most siginificant byte
+            //1 is the least significant byte
 
-            for (int i = 0; i < input.Count(); i++)
-            {
-                ConvertedCurrentChunk += input[i] == true ? value : 0;
-                value--;
-            }
+            int shiftToLeft = 64 - (ByteIndex * 8);
 
-            return ConvertedCurrentChunk;
+            //push to left:
+            //    get rid of bytes that are more significant
+
+            var postLeftShift = input << shiftToLeft;
+
+            //push to right:
+            //    make proper byte least significant
+
+            var postRightShift = postLeftShift >> 56;
+
+            var output = (byte) postRightShift;
+
+            return output;
         }
     }
 }
